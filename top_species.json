@@ -1,0 +1,112 @@
+[
+    {
+        "light_threshold": 0.5833743946653492,
+        "fertility_threshold": 0.5528293995750085,
+        "replication_threshold": 25.824913398170104,
+        "mutation_prob": 0.004941638080483771,
+        "degeneration_prob": 0.016665640521161953,
+        "fertility_sacrifice_threshold": 0.03261914500188259,
+        "factory_prob": 0.09224839045605299,
+        "factory_fertility_threshold": 0.1683695072926815,
+        "species_id": 84
+    },
+    {
+        "light_threshold": 0.7373983886785128,
+        "fertility_threshold": 0.4109693147226142,
+        "replication_threshold": 57.14411105376473,
+        "mutation_prob": 0.035356921009896305,
+        "degeneration_prob": 0.0010616375258315027,
+        "fertility_sacrifice_threshold": 0.10732884788739205,
+        "factory_prob": 0.009633308647588826,
+        "factory_fertility_threshold": 0.2697168807756351,
+        "species_id": 18
+    },
+    {
+        "light_threshold": 0.2919517550614,
+        "fertility_threshold": 0.2861229036124275,
+        "replication_threshold": 38.19916926015554,
+        "mutation_prob": 0.0010705694417345978,
+        "degeneration_prob": 0.021355695152403622,
+        "fertility_sacrifice_threshold": 0.11970693994944619,
+        "factory_prob": 0.0036905588006300397,
+        "factory_fertility_threshold": 0.13578349266745346,
+        "species_id": 52
+    },
+    {
+        "light_threshold": 0.4796249508500026,
+        "fertility_threshold": 0.5689232404845281,
+        "replication_threshold": 46.65659491039666,
+        "mutation_prob": 0.018209383972238105,
+        "degeneration_prob": 0.007385870935983636,
+        "fertility_sacrifice_threshold": 0.27260462995566426,
+        "factory_prob": 0.029659366468274474,
+        "factory_fertility_threshold": 0.4713193198216505,
+        "species_id": 58
+    },
+    {
+        "light_threshold": 0.24925861077255546,
+        "fertility_threshold": 0.6377526541984057,
+        "replication_threshold": 49.66413164272356,
+        "mutation_prob": 0.011524439279917198,
+        "degeneration_prob": 0.005774724622625868,
+        "fertility_sacrifice_threshold": 0.1647079751164825,
+        "factory_prob": 0.0174614906229331,
+        "factory_fertility_threshold": 0.4462417528728449,
+        "species_id": 57
+    },
+    {
+        "light_threshold": 0.6237365264845874,
+        "fertility_threshold": 0.4964895750739183,
+        "replication_threshold": 67.16690905236482,
+        "mutation_prob": 0.006163064732591995,
+        "degeneration_prob": 0.012526745356924213,
+        "fertility_sacrifice_threshold": 0.1212897913546116,
+        "factory_prob": 0.10621952766374766,
+        "factory_fertility_threshold": 0.3839315099864111,
+        "species_id": 92
+    },
+    {
+        "light_threshold": 0.300873170537725,
+        "fertility_threshold": 0.7820183059408843,
+        "replication_threshold": 76.44560805863998,
+        "mutation_prob": 0.04052199211657707,
+        "degeneration_prob": 0.03595049831002689,
+        "fertility_sacrifice_threshold": 0.04218354841856592,
+        "factory_prob": 0.07041645044419251,
+        "factory_fertility_threshold": 0.13961581545646323,
+        "species_id": 3
+    },
+    {
+        "light_threshold": 0.607723965643681,
+        "fertility_threshold": 0.4356912011189371,
+        "replication_threshold": 65.80073317219299,
+        "mutation_prob": 0.025771119217828733,
+        "degeneration_prob": 0.021258015811384052,
+        "fertility_sacrifice_threshold": 0.14219224548637766,
+        "factory_prob": 0.08701303988849794,
+        "factory_fertility_threshold": 0.37224878890550517,
+        "species_id": 34
+    },
+    {
+        "light_threshold": 0.5079249922476619,
+        "fertility_threshold": 0.6193777601673752,
+        "replication_threshold": 32.36531831408927,
+        "mutation_prob": 0.021029003628525986,
+        "degeneration_prob": 0.007228090277608579,
+        "fertility_sacrifice_threshold": 0.20946782079229684,
+        "factory_prob": 0.020847569561152093,
+        "factory_fertility_threshold": 0.37685350877852997,
+        "species_id": 83
+    },
+    {
+        "light_threshold": 0.624163611119174,
+        "fertility_threshold": 0.6639230574464186,
+        "replication_threshold": 22.646082986736523,
+        "mutation_prob": 0.014820043426842032,
+        "degeneration_prob": 0.04085403861431361,
+        "fertility_sacrifice_threshold": 0.10951324534461451,
+        "factory_prob": 0.05211353204137697,
+        "factory_fertility_threshold": 0.3997289036626144,
+        "species_id": 62
+    }
+]

@@ -2,6 +2,8 @@ import random
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
+import json
+import os
 
 # 定义生物单元基类
 class OrganismUnit:
@@ -19,7 +21,10 @@ class OrganismUnit:
             'replication_threshold': 50.0,
             'mutation_prob': 0.01,
             'degeneration_prob': 0.01,
-            'fertility_sacrifice_threshold': 0.1 # 肥力低于此值时，连接单元牺牲自己
+            'fertility_sacrifice_threshold': 0.1, # 肥力低于此值时，连接单元牺牲自己
+            'factory_prob': 0.05, # 变身为工厂的概率
+            'factory_fertility_threshold': 0.3, # 肥力低于此值时，可能变身为工厂
+            'species_id': 0 # 种群ID
         }
 
     def update(self, board, x, y):
@@ -48,13 +53,25 @@ class PhotosynthesisUnit(OrganismUnit):
         return f"PhotosynthesisUnit(E={self.energy:.1f})"
 
     def update(self, board, x, y):
+        neighbors = get_neighbors(board, x, y)
+        
+        # 防御机制: 与周围的敌对战斗单元一换一 (无视能量)
+        my_species = self.dna.get('species_id', 0)
+        for nx, ny in neighbors:
+            target_unit = board[nx][ny].organism
+            # 使用类名判断以避免定义顺序问题
+            if target_unit and target_unit.__class__.__name__ == 'CombatUnit':
+                if target_unit.dna.get('species_id', 0) != my_species:
+                    kill_unit(board, nx, ny) # 杀死敌人
+                    kill_unit(board, x, y)   # 牺牲自己
+                    return
+
         # 获取当前格子的光照
         light = board[x][y].light
         
         # 线性公式转换能量 (例如系数为 100)
         generated_energy = light * 100.0
         
-        neighbors = get_neighbors(board, x, y)
         if not neighbors:
             return
 
@@ -76,11 +93,27 @@ class ReplicationUnit(OrganismUnit):
         super().__init__(dna)
         self.replication_constant = self.dna.get('replication_threshold', 50.0) # 繁殖所需的能量阈值
         self.accumulated_energy = 0.0
+        self.failed_attempts = 0
 
     def __repr__(self):
         return f"ReplicationUnit(E={self.energy:.1f}, Acc={self.accumulated_energy:.1f})"
 
     def update(self, board, x, y):
+        # 战斗检测: 如果周围有异种生物，变身为战斗单元
+        neighbors = get_neighbors(board, x, y)
+        my_species = self.dna.get('species_id', 0)
+        
+        for nx, ny in neighbors:
+            neighbor_unit = board[nx][ny].organism
+            if neighbor_unit:
+                neighbor_species = neighbor_unit.dna.get('species_id', 0)
+                if neighbor_species != my_species:
+                    # 发现敌人，变身
+                    combat_unit = CombatUnit(dna=self.dna)
+                    combat_unit.energy = self.energy
+                    spawn_unit(board, x, y, combat_unit)
+                    return
+
         # 退化逻辑: 有一定概率退化为连接单元
         degeneration_prob = self.dna.get('degeneration_prob', 0.0)
         if random.random() < degeneration_prob:
@@ -94,8 +127,8 @@ class ReplicationUnit(OrganismUnit):
         self.energy = 0 
         
         if self.accumulated_energy >= self.replication_constant:
-            self.trigger_event(board, x, y)
-            self.accumulated_energy = 0 # 重置
+            if self.trigger_event(board, x, y):
+                self.accumulated_energy = 0 # 重置
 
     def trigger_event(self, board, x, y):
         neighbors = get_neighbors(board, x, y)
@@ -109,13 +142,22 @@ class ReplicationUnit(OrganismUnit):
                 four_neighbors.append((nx, ny))
 
         empty_neighbors = [n for n in four_neighbors if board[n[0]][n[1]].organism is None]
-        if empty_neighbors:
-            nx, ny = random.choice(empty_neighbors)
-            # 传递DNA给后代
-            spawn_unit(board, nx, ny, ReplicationUnit(dna=self.dna))
-            # print(f"复制单元在 ({x}, {y}) 繁殖到了 ({nx}, {ny})")
+        
+        if not empty_neighbors:
+            # 无法复制
+            self.failed_attempts += 1
+            if self.failed_attempts >= 1:
+                # 超过一回合无法复制，退化为连接单元
+                spawn_unit(board, x, y, ConnectionUnit(dna=self.dna))
+                return True
+            return False
 
-        # 2. 将自己变为 光合单元 或 连接单元
+        # 可以复制
+        nx, ny = random.choice(empty_neighbors)
+        # 传递DNA给后代
+        spawn_unit(board, nx, ny, ReplicationUnit(dna=self.dna))
+
+        # 2. 将自己变为 光合单元 或 连接单元 或 工厂单元
         # 根据DNA中的光照阈值和肥力阈值决定
         current_light = board[x][y].light
         current_fertility = board[x][y].fertility
@@ -123,14 +165,21 @@ class ReplicationUnit(OrganismUnit):
         light_thresh = self.dna.get('light_threshold', 0.5)
         fert_thresh = self.dna.get('fertility_threshold', 0.5)
         
+        # 工厂单元判断逻辑
+        factory_prob = self.dna.get('factory_prob', 0.05)
+        factory_fert_thresh = self.dna.get('factory_fertility_threshold', 0.3)
+        
+        # 如果肥力低且随机命中，则变为工厂
+        if current_fertility < factory_fert_thresh and random.random() < factory_prob:
+            new_type = FactoryUnit
         # 只有当光照和肥力都达标时，才成为光合单元
-        if current_light > light_thresh and current_fertility > fert_thresh:
+        elif current_light > light_thresh and current_fertility > fert_thresh:
             new_type = PhotosynthesisUnit
         else:
             new_type = ConnectionUnit
             
         spawn_unit(board, x, y, new_type(dna=self.dna))
-        # print(f"复制单元 ({x}, {y}) 变身为 {new_type.__name__}")
+        return True
 
 class SporeUnit(OrganismUnit):
     """孢子单元: 携带DNA，一刻后爆发"""
@@ -201,6 +250,76 @@ class ConnectionUnit(OrganismUnit):
             
             for org in targets:
                 org.energy += received_amount
+
+class CombatUnit(OrganismUnit):
+    """战斗单元: 攻击异种生物并同化"""
+    def __repr__(self):
+        return f"CombatUnit(E={self.energy:.1f})"
+
+    def update(self, board, x, y):
+        # 基础代谢
+        self.energy -= 0.5
+        if self.energy <= 0:
+            # 死亡由主循环处理，但这里可以提前返回
+            return
+
+        neighbors = get_neighbors(board, x, y)
+        my_species = self.dna.get('species_id', 0)
+        has_enemy = False
+        
+        for nx, ny in neighbors:
+            target_unit = board[nx][ny].organism
+            if target_unit:
+                target_species = target_unit.dna.get('species_id', 0)
+                if target_species != my_species:
+                    has_enemy = True
+                    # 战斗逻辑: 能量高者胜
+                    if self.energy > target_unit.energy:
+                        # 消耗一定能量进行同化
+                        cost = target_unit.energy * 0.5
+                        if self.energy > cost:
+                            self.energy -= cost
+                            # 同化为己方复制单元
+                            new_unit = ReplicationUnit(dna=self.dna)
+                            new_unit.energy = target_unit.energy # 保留部分能量
+                            spawn_unit(board, nx, ny, new_unit)
+                            # print(f"战斗单元 ({x}, {y}) 同化了 ({nx}, {ny})")
+        
+        # 如果周围没有敌人，变回复制单元以继续发展
+        if not has_enemy:
+            new_unit = ReplicationUnit(dna=self.dna)
+            new_unit.energy = self.energy
+            spawn_unit(board, x, y, new_unit)
+
+class FactoryUnit(OrganismUnit):
+    """工厂单元: 消耗能量增加周围肥力"""
+    def __repr__(self):
+        return f"FactoryUnit(E={self.energy:.1f})"
+
+    def update(self, board, x, y):
+        # 消耗能量
+        consumption = 1.0
+        if self.energy < consumption:
+            # 能量不足，无法工作，甚至可能死亡(由主循环处理)
+            return
+            
+        self.energy -= consumption
+        
+        # 增加周围3格(半径3)的肥力
+        height = len(board)
+        width = len(board[0])
+        
+        # 转换效率: 1点能量 -> 0.01 肥力 (分摊给周围)
+        # 或者每个格子增加固定值
+        # 恢复缓慢: 0.001
+        fertility_gain = 0.001
+        
+        for i in range(-3, 4):
+            for j in range(-3, 4):
+                if i == 0 and j == 0: continue
+                nx, ny = x + i, y + j
+                if 0 <= nx < height and 0 <= ny < width:
+                    board[nx][ny].fertility += fertility_gain
 
 # 定义棋盘格子类
 class Cell:
@@ -290,25 +409,96 @@ def generate_board(width, height):
     print("棋盘生成完毕。")
     return board
 
-def populate_randomly(board, count=100):
+def save_top_species(board, filename="top_species.json"):
+    print("正在保存前10名物种DNA...")
+    species_counts = {}
+    species_dnas = {}
+    
+    height = len(board)
+    width = len(board[0])
+    
+    for r in range(height):
+        for c in range(width):
+            unit = board[r][c].organism
+            if unit:
+                dna = unit.dna
+                s_id = dna.get('species_id')
+                if s_id is not None:
+                    species_counts[s_id] = species_counts.get(s_id, 0) + 1
+                    if s_id not in species_dnas:
+                        species_dnas[s_id] = dna
+    
+    sorted_species = sorted(species_counts.items(), key=lambda item: item[1], reverse=True)
+    top_10 = sorted_species[:10]
+    top_dnas = [species_dnas[s_id] for s_id, count in top_10]
+    
+    try:
+        with open(filename, 'w') as f:
+            json.dump(top_dnas, f, indent=4)
+        print(f"已保存 {len(top_dnas)} 个物种DNA到 {filename}")
+    except Exception as e:
+        print(f"保存失败: {e}")
+
+def load_top_species(filename="top_species.json"):
+    if not os.path.exists(filename):
+        return None
+    try:
+        with open(filename, 'r') as f:
+            dnas = json.load(f)
+        print(f"从 {filename} 读取了 {len(dnas)} 个物种DNA")
+        return dnas
+    except Exception as e:
+        print(f"读取失败: {e}")
+        return None
+
+def populate_randomly(board, count=100, initial_dnas=None):
     """随机放置一些生物单元用于演示"""
     height = len(board)
     width = len(board[0])
     
-    # 放置一些孢子单元
-    for _ in range(10):
-        r = random.randint(10, height - 11)
-        c = random.randint(10, width - 11)
-        # 随机DNA阈值
-        dna = {
-            'light_threshold': random.uniform(0.2, 0.8),
-            'fertility_threshold': random.uniform(0.2, 0.8),
-            'replication_threshold': random.uniform(20.0, 80.0),
-            'mutation_prob': random.uniform(0.0, 0.05), # 0% ~ 5%
-            'degeneration_prob': random.uniform(0.0, 0.05), # 0% ~ 5%
-            'fertility_sacrifice_threshold': random.uniform(0.0, 0.3)
-        }
-        spawn_unit(board, r, c, SporeUnit(dna=dna))
+    if initial_dnas:
+        print(f"使用存档的 {len(initial_dnas)} 个DNA初始化...")
+        for dna in initial_dnas:
+             r = random.randint(10, height - 11)
+             c = random.randint(10, width - 11)
+             spawn_unit(board, r, c, SporeUnit(dna=dna))
+        
+        # 如果不足10个，补齐随机
+        remaining = 10 - len(initial_dnas)
+        if remaining > 0:
+             for _ in range(remaining):
+                r = random.randint(10, height - 11)
+                c = random.randint(10, width - 11)
+                dna = {
+                    'light_threshold': random.uniform(0.2, 0.8),
+                    'fertility_threshold': random.uniform(0.2, 0.8),
+                    'replication_threshold': random.uniform(20.0, 80.0),
+                    'mutation_prob': random.uniform(0.0, 0.05),
+                    'degeneration_prob': random.uniform(0.0, 0.05),
+                    'fertility_sacrifice_threshold': random.uniform(0.0, 0.3),
+                    'factory_prob': random.uniform(0.0, 0.1),
+                    'factory_fertility_threshold': random.uniform(0.1, 0.5),
+                    'species_id': random.randint(1, 100)
+                }
+                spawn_unit(board, r, c, SporeUnit(dna=dna))
+    else:
+        # 放置一些孢子单元
+        for _ in range(10):
+            r = random.randint(10, height - 11)
+            c = random.randint(10, width - 11)
+            # 随机DNA阈值
+            dna = {
+                'light_threshold': random.uniform(0.2, 0.8),
+                'fertility_threshold': random.uniform(0.2, 0.8),
+                'replication_threshold': random.uniform(20.0, 80.0),
+                'mutation_prob': random.uniform(0.0, 0.05), # 0% ~ 5%
+                'degeneration_prob': random.uniform(0.0, 0.05), # 0% ~ 5%
+                'fertility_sacrifice_threshold': random.uniform(0.0, 0.3),
+                'factory_prob': random.uniform(0.0, 0.1),
+                'factory_fertility_threshold': random.uniform(0.1, 0.5),
+                'species_id': random.randint(1, 100)
+            }
+            spawn_unit(board, r, c, SporeUnit(dna=dna))
 
     # 移除普通单元的生成，只保留孢子
     # unit_types = [PhotosynthesisUnit, ReplicationUnit, ConnectionUnit]
@@ -355,7 +545,10 @@ def perform_pollination(board):
             'replication_threshold': random.uniform(20.0, 80.0),
             'mutation_prob': random.uniform(0.0, 0.05),
             'degeneration_prob': random.uniform(0.0, 0.05),
-            'fertility_sacrifice_threshold': random.uniform(0.0, 0.3)
+            'fertility_sacrifice_threshold': random.uniform(0.0, 0.3),
+            'factory_prob': random.uniform(0.0, 0.1),
+            'factory_fertility_threshold': random.uniform(0.1, 0.5),
+            'species_id': random.randint(1, 100)
         }
         
     # 2. 寻找目标空位 (尝试几次)
@@ -422,6 +615,10 @@ def get_board_rgb(board):
                     grid[r, c] = [1, 0, 0] # 红色: 复制单元
                 elif isinstance(cell.organism, ConnectionUnit):
                     grid[r, c] = [0, 0, 1] # 蓝色: 连接单元
+                elif isinstance(cell.organism, FactoryUnit):
+                    grid[r, c] = [1, 0, 1] # 紫色: 工厂单元
+                elif isinstance(cell.organism, CombatUnit):
+                    grid[r, c] = [1, 0.5, 0] # 橙色: 战斗单元
             else:
                 # 背景显示黑色
                 grid[r, c] = [0, 0, 0]
@@ -511,8 +708,11 @@ if __name__ == "__main__":
     # 1. 生成棋盘
     game_board = generate_board(WIDTH, HEIGHT)
     
+    # 读取存档
+    saved_dnas = load_top_species()
+    
     # 2. 随机放置一些生物进行演示
-    populate_randomly(game_board, count=200)
+    populate_randomly(game_board, count=200, initial_dnas=saved_dnas)
     
     print("初始化可视化窗口...")
     
@@ -557,6 +757,28 @@ if __name__ == "__main__":
     # 创建动画
     ani = animation.FuncAnimation(fig, animate, interval=50, blit=True)
     
+    # 交互控制
+    is_paused = False
+    
+    def on_key(event):
+        global is_paused
+        if event.key == ' ':
+            if is_paused:
+                ani.event_source.start()
+                is_paused = False
+            else:
+                ani.event_source.stop()
+                is_paused = True
+                fig.suptitle("Ecosystem Simulation - Paused")
+                fig.canvas.draw_idle()
+        elif event.key == 'q' or event.key == 'escape':
+            save_top_species(game_board)
+            plt.close(fig)
+            print("模拟结束")
+
+    fig.canvas.mpl_connect('key_press_event', on_key)
+    
     print("开始模拟。请查看弹出的窗口。")
+    print("控制说明: 按 [空格] 暂停/继续，按 [q] 或 [Esc] 退出。")
     plt.show()
 
