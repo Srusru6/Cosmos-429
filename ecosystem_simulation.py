@@ -195,9 +195,9 @@ class ConnectionUnit(OrganismUnit):
             transfer_total = self.energy * 0.8
             self.energy -= transfer_total
             
-            # 平均分配给所有邻居，但有损耗 (0.9 递减)
+            # 平均分配给所有邻居
             share = transfer_total / len(targets)
-            received_amount = share * 0.9
+            received_amount = share * 1
             
             for org in targets:
                 org.energy += received_amount
@@ -485,6 +485,23 @@ def get_fertility_rgb(board):
                 grid[r, c] = [min(1.0, abs(val)), 0, 0]
     return grid
 
+def get_energy_rgb(board):
+    """将棋盘能量转换为RGB矩阵"""
+    height = len(board)
+    width = len(board[0])
+    grid = np.zeros((height, width, 3))
+    for r in range(height):
+        for c in range(width):
+            unit = board[r][c].organism
+            if unit:
+                # 能量可视化: 黄色 (R+G)
+                # 假设 100 为显示上限
+                val = min(1.0, max(0.0, unit.energy / 100.0))
+                grid[r, c] = [val, val, 0]
+            else:
+                grid[r, c] = [0, 0, 0]
+    return grid
+
 if __name__ == "__main__":
     # 提示: 1000x1000 的纯 Python 模拟会非常慢，建议使用较小尺寸进行可视化演示
     # 或者需要将核心逻辑重写为 numpy 矩阵运算
@@ -499,23 +516,28 @@ if __name__ == "__main__":
     
     print("初始化可视化窗口...")
     
-    # 设置图形: 2x2 子图
-    fig, axs = plt.subplots(2, 2, figsize=(12, 12))
-    ax1, ax2 = axs[0]
-    ax3, ax4 = axs[1]
+    # 设置图形: 2x3 子图
+    fig, axs = plt.subplots(2, 3, figsize=(15, 10))
+    ax1, ax2, ax5 = axs[0]
+    ax3, ax4, ax6 = axs[1]
     
     ax1.set_title("Organism Types")
     ax2.set_title("DNA (R:Light, G:Rep, B:Fert)")
+    ax5.set_title("Energy Levels (Yellow)")
+    
     ax3.set_title("Light Distribution")
     ax4.set_title("Fertility (Green>0, Red<0)")
+    ax6.axis('off') # 第6个暂时不用
     
     # 初始图像
     im1 = ax1.imshow(get_board_rgb(game_board), interpolation='nearest')
     im2 = ax2.imshow(get_dna_rgb(game_board), interpolation='nearest')
+    im5 = ax5.imshow(get_energy_rgb(game_board), interpolation='nearest')
+    
     im3 = ax3.imshow(get_light_rgb(game_board), interpolation='nearest', vmin=0, vmax=1)
     im4 = ax4.imshow(get_fertility_rgb(game_board), interpolation='nearest')
     
-    for ax in [ax1, ax2, ax3, ax4]:
+    for ax in [ax1, ax2, ax3, ax4, ax5, ax6]:
         ax.axis('off')
     
     def animate(frame):
@@ -525,11 +547,12 @@ if __name__ == "__main__":
         # 更新图像
         im1.set_array(get_board_rgb(game_board))
         im2.set_array(get_dna_rgb(game_board))
+        im5.set_array(get_energy_rgb(game_board))
         im3.set_array(get_light_rgb(game_board))
         im4.set_array(get_fertility_rgb(game_board))
         
         fig.suptitle(f"Ecosystem Simulation - Round {frame}")
-        return [im1, im2, im3, im4]
+        return [im1, im2, im3, im4, im5]
 
     # 创建动画
     ani = animation.FuncAnimation(fig, animate, interval=50, blit=True)
