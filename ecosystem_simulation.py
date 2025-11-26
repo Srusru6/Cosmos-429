@@ -29,13 +29,19 @@ class OrganismUnit:
         # DNA: 包含遗传信息
         # light_threshold: 决定复制单元变身时选择光合(>阈值)还是连接(<=阈值)
         # replication_threshold: 决定复制单元繁殖所需的能量阈值
+        # fertility_threshold: 决定复制单元变身时是否选择光合单元(需同时满足光照和肥力阈值)
         # mutation_prob: 连接单元变异为复制单元的概率
         # degeneration_prob: 复制单元退化为连接单元的概率
         self.dna = dna if dna is not None else {
             'light_threshold': 0.4, 
+            'fertility_threshold': 0.4,
             'replication_threshold': 50.0,
             'mutation_prob': 0.01,
             'degeneration_prob': 0.01,
+            'fertility_sacrifice_threshold': 0.1, # 肥力低于此值时，连接单元牺牲自己
+            'factory_prob': 0.05, # 变身为工厂的概率
+            'factory_fertility_threshold': 0.3, # 肥力低于此值时，可能变身为工厂
+            'defense_prob': 0.02, # 变身为防御设施的概率
             'species_id': 0 # 种群ID
         }
 
@@ -169,15 +175,32 @@ class ReplicationUnit(OrganismUnit):
         # 传递DNA给后代
         spawn_unit(board, nx, ny, ReplicationUnit(dna=self.dna))
 
-        # 2. 将自己变为 光合单元 或 连接单元
-        # 根据DNA中的光照阈值决定
+        # 2. 将自己变为 光合单元 或 连接单元 或 工厂单元
+        # 根据DNA中的光照阈值和肥力阈值决定
         current_light = board[x][y].light
+        current_fertility = board[x][y].fertility
         
         light_thresh = self.dna.get('light_threshold', 0.5)
+        fert_thresh = self.dna.get('fertility_threshold', 0.5)
+        
+        # 工厂单元判断逻辑
+        factory_prob = self.dna.get('factory_prob', 0.05)
+        factory_fert_thresh = self.dna.get('factory_fertility_threshold', 0.3)
+        
+        # 计算周围9格(包括自己)的平均肥力，以检测区域贫瘠程度
+        total_fert = current_fertility
+        count = 1
+        for nx, ny in neighbors:
+            total_fert += board[nx][ny].fertility
+            count += 1
+        avg_fertility = total_fert / count
         
         # 判定变身类型
-        # 只有当光照达标时，才成为光合单元
-        if current_light > light_thresh:
+        # 1. 如果区域平均肥力低且随机命中，则变为工厂
+        if avg_fertility < factory_fert_thresh and random.random() < factory_prob:
+            new_type = FactoryUnit
+        # 2. 只有当光照和肥力都达标时，才成为光合单元
+        elif current_light > light_thresh and current_fertility > fert_thresh:
             new_type = PhotosynthesisUnit
         else:
             new_type = ConnectionUnit
@@ -212,19 +235,18 @@ class ConnectionUnit(OrganismUnit):
         return f"ConnectionUnit(E={self.energy:.1f})"
 
     def update(self, board, x, y):
-        neighbors = get_neighbors(board, x, y)
+        # 获取当前肥力
+        current_fertility = board[x][y].fertility
         
-        # 检查是否被包围: 如果周围没有空位，则视为被包围
-        has_empty_space = False
-        for nx, ny in neighbors:
-            if board[nx][ny].organism is None:
-                has_empty_space = True
-                break
+        # 肥力特别小时牺牲自己
+        fert_sacrifice_thresh = self.dna.get('fertility_sacrifice_threshold', 0.1)
+        if current_fertility < fert_sacrifice_thresh:
+            kill_unit(board, x, y)
+            return
 
         # 变异逻辑: 有一定概率变异为复制单元
-        # 只有当周围有空位时才变异，否则保持连接状态传输能量
         mutation_prob = self.dna.get('mutation_prob', 0.0)
-        if has_empty_space and random.random() < mutation_prob:
+        if random.random() < mutation_prob:
             new_unit = ReplicationUnit(dna=self.dna)
             new_unit.energy = self.energy # 继承能量
             spawn_unit(board, x, y, new_unit)
@@ -233,6 +255,7 @@ class ConnectionUnit(OrganismUnit):
         if self.energy <= 0.1: # 能量太少不传输
             return
 
+        neighbors = get_neighbors(board, x, y)
         if not neighbors:
             return
 
@@ -366,22 +389,64 @@ class CombatUnit(OrganismUnit):
             new_unit.energy = self.energy
             spawn_unit(board, x, y, new_unit)
 
+class FactoryUnit(OrganismUnit):
+    """工厂单元: 消耗能量增加周围肥力"""
+    def __repr__(self):
+        return f"FactoryUnit(E={self.energy:.1f})"
+
+    def update(self, board, x, y):
+        # 消耗能量
+        consumption = 1.0
+        if self.energy < consumption:
+            # 能量不足，无法工作，甚至可能死亡(由主循环处理)
+            return
+            
+        self.energy -= consumption
+        
+        # 增加周围3格(半径3)的肥力
+        height = len(board)
+        width = len(board[0])
+        
+        # 转换效率: 1点能量 -> 0.01 肥力 (分摊给周围)
+        # 或者每个格子增加固定值
+        # 恢复缓慢: 0.01
+        fertility_gain = 0.01
+        
+        for i in range(-3, 4):
+            for j in range(-3, 4):
+                if i == 0 and j == 0: continue
+                nx, ny = x + i, y + j
+                if 0 <= nx < height and 0 <= ny < width:
+                    board[nx][ny].fertility += fertility_gain
+
 # 定义棋盘格子类
 class Cell:
     def __init__(self):
         # 光照（浮点数，范围0~1）
         self.light = random.random()
+        # 土地肥力（浮点数，范围0~1）
+        self.base_fertility = random.random()
+        self.fertility = self.base_fertility
         # 其上生物（默认为无）
         self.organism = None
 
     def __repr__(self):
         org_str = self.organism if self.organism else "None"
-        return f"Cell(Light={self.light:.2f}, Organism={org_str})"
+        return f"Cell(Light={self.light:.2f}, Fertility={self.fertility:.2f}, Organism={org_str})"
 
-def spawn_unit(board, x, y, unit):
+def spawn_unit(board, x, y, unit, apply_fertility=True):
     board[x][y].organism = unit
     height = len(board)
     width = len(board[0])
+    
+    # 肥力惩罚: 周围8格 -0.05
+    if apply_fertility:
+        for i in range(-1, 2):
+            for j in range(-1, 2):
+                if i == 0 and j == 0: continue
+                nx, ny = x + i, y + j
+                if 0 <= nx < height and 0 <= ny < width:
+                    board[nx][ny].fertility -= 0.05
                 
     # 光照惩罚: 光合单元周围3格减半
     if isinstance(unit, PhotosynthesisUnit):
@@ -401,6 +466,14 @@ def kill_unit(board, x, y):
     height = len(board)
     width = len(board[0])
     
+    # 肥力恢复: 周围8格 +0.05
+    for i in range(-1, 2):
+        for j in range(-1, 2):
+            if i == 0 and j == 0: continue
+            nx, ny = x + i, y + j
+            if 0 <= nx < height and 0 <= ny < width:
+                board[nx][ny].fertility += 0.05
+
     # 光照恢复: 光合单元周围3格恢复
     if isinstance(unit, PhotosynthesisUnit):
         for i in range(-3, 4):
@@ -504,6 +577,8 @@ def generate_board(width, height, mode='radial'):
                 for c in range(width):
                     val = net_noise[r][c]
                     board[r][c].light = val
+                    board[r][c].base_fertility = val
+                    board[r][c].fertility = val
         except Exception as e:
             print(f"柏林噪声生成失败，回退到径向模式: {e}")
             mode = 'radial'
@@ -519,6 +594,9 @@ def generate_board(width, height, mode='radial'):
                 # 线性递减: 中心1.0 -> 角落0.0
                 val = max(0.0, 1.0 - (dist / max_dist))
                 board[r][c].light = val
+                # 初始肥力与光照相同
+                board[r][c].base_fertility = val
+                board[r][c].fertility = val
 
     print("棋盘生成完毕。")
     return board
@@ -607,9 +685,13 @@ def populate_randomly(board, count=100, initial_dnas=None):
                 c = random.randint(10, width - 11)
                 dna = {
                     'light_threshold': random.uniform(0.2, 0.8),
+                    'fertility_threshold': random.uniform(0.2, 0.8),
                     'replication_threshold': random.uniform(20.0, 80.0),
                     'mutation_prob': random.uniform(0.0, 0.05),
                     'degeneration_prob': random.uniform(0.0, 0.05),
+                    'fertility_sacrifice_threshold': random.uniform(0.0, 0.3),
+                    'factory_prob': random.uniform(0.0, 0.1),
+                    'factory_fertility_threshold': random.uniform(0.1, 0.5),
                     'species_id': random.randint(1, 100)
                 }
                 spawn_unit(board, r, c, SporeUnit(dna=dna))
@@ -621,9 +703,13 @@ def populate_randomly(board, count=100, initial_dnas=None):
             # 随机DNA阈值
             dna = {
                 'light_threshold': random.uniform(0.2, 0.8),
+                'fertility_threshold': random.uniform(0.2, 0.8),
                 'replication_threshold': random.uniform(20.0, 80.0),
                 'mutation_prob': random.uniform(0.0, 0.05), # 0% ~ 5%
                 'degeneration_prob': random.uniform(0.0, 0.05), # 0% ~ 5%
+                'fertility_sacrifice_threshold': random.uniform(0.0, 0.3),
+                'factory_prob': random.uniform(0.0, 0.1),
+                'factory_fertility_threshold': random.uniform(0.1, 0.5),
                 'species_id': random.randint(1, 100)
             }
             spawn_unit(board, r, c, SporeUnit(dna=dna))
@@ -669,9 +755,13 @@ def perform_pollination(board):
         # 无生物则随机生成DNA
         base_dna = {
             'light_threshold': random.uniform(0.2, 0.8),
+            'fertility_threshold': random.uniform(0.2, 0.8),
             'replication_threshold': random.uniform(20.0, 80.0),
             'mutation_prob': random.uniform(0.0, 0.05),
             'degeneration_prob': random.uniform(0.0, 0.05),
+            'fertility_sacrifice_threshold': random.uniform(0.0, 0.3),
+            'factory_prob': random.uniform(0.0, 0.1),
+            'factory_fertility_threshold': random.uniform(0.1, 0.5),
             'species_id': random.randint(1, 100)
         }
         
@@ -694,7 +784,22 @@ def simulate_step(board, step_count=0):
     if step_count % 10 == 0:
         perform_pollination(board)
     
-    # 1. 遍历所有格子进行更新
+    # 1. 肥力恢复与致死检查
+    for r in range(height):
+        for c in range(width):
+            cell = board[r][c]
+            
+            # 肥力恢复: 缓慢回升到 base_fertility
+            if cell.fertility < cell.base_fertility:
+                cell.fertility += 0.005 # 恢复速度
+                if cell.fertility > cell.base_fertility:
+                    cell.fertility = cell.base_fertility
+            
+            # 致死检查: 肥力 < 0 杀死生物
+            if cell.fertility < 0 and cell.organism:
+                kill_unit(board, r, c)
+
+    # 2. 遍历所有格子进行更新
     # 注意：为了简单起见，这里是顺序更新。更严谨的模拟可能需要随机顺序或双缓冲。
     for r in range(height):
         for c in range(width):
@@ -724,6 +829,8 @@ def get_board_rgb(board):
                     grid[r, c] = [1, 0, 0] # 红色: 复制单元
                 elif isinstance(cell.organism, ConnectionUnit):
                     grid[r, c] = [0, 0, 1] # 蓝色: 连接单元
+                elif isinstance(cell.organism, FactoryUnit):
+                    grid[r, c] = [1, 0, 1] # 紫色: 工厂单元
                 elif isinstance(cell.organism, CombatUnit):
                     grid[r, c] = [1, 0.5, 0] # 橙色: 战斗单元
             else:
@@ -751,8 +858,9 @@ def get_dna_rgb(board):
                 g_val = (rep_thresh - 20.0) / 60.0 
                 g_val = max(0.0, min(1.0, g_val))
                 
-                # Blue channel unused (was fertility)
-                b_val = 0.0
+                # fertility_threshold: 0.2 ~ 0.8 -> Blue channel
+                fert_thresh = dna.get('fertility_threshold', 0.5)
+                b_val = fert_thresh
                 
                 grid[r, c] = [r_val, g_val, b_val]
             else:
@@ -769,6 +877,23 @@ def get_light_rgb(board):
         for c in range(width):
             val = board[r][c].light
             grid[r, c] = [val, val, val] # 灰度显示光照
+    return grid
+
+def get_fertility_rgb(board):
+    """将棋盘肥力转换为RGB矩阵"""
+    height = len(board)
+    width = len(board[0])
+    grid = np.zeros((height, width, 3))
+    for r in range(height):
+        for c in range(width):
+            val = board[r][c].fertility
+            # 肥力可能为负，进行可视化处理
+            # 正值: 绿色 (0~1)
+            # 负值: 红色 (-1~0)
+            if val >= 0:
+                grid[r, c] = [0, min(1.0, val), 0]
+            else:
+                grid[r, c] = [min(1.0, abs(val)), 0, 0]
     return grid
 
 def get_energy_rgb(board):
@@ -849,11 +974,11 @@ if __name__ == "__main__":
     ax3, ax4, ax6 = axs[1]
     
     ax1.set_title("Organism Types")
-    ax2.set_title("DNA (R:Light, G:Rep)")
+    ax2.set_title("DNA (R:Light, G:Rep, B:Fert)")
     ax5.set_title("Energy Levels (Yellow)")
     
     ax3.set_title("Light Distribution")
-    ax4.set_title("Unused")
+    ax4.set_title("Fertility (Green>0, Red<0)")
     ax6.set_title("Top 5 Species")
     ax6.axis('off')
     
@@ -870,8 +995,7 @@ if __name__ == "__main__":
     im5 = ax5.imshow(get_energy_rgb(game_board), interpolation='nearest')
     
     im3 = ax3.imshow(get_light_rgb(game_board), interpolation='nearest', vmin=0, vmax=1)
-    # im4 留空或显示全黑
-    im4 = ax4.imshow(np.zeros((HEIGHT, WIDTH, 3)), interpolation='nearest')
+    im4 = ax4.imshow(get_fertility_rgb(game_board), interpolation='nearest')
     
     for ax in [ax1, ax2, ax3, ax4, ax5, ax6]:
         ax.axis('off')
@@ -885,7 +1009,7 @@ if __name__ == "__main__":
         im2.set_array(get_dna_rgb(game_board))
         im5.set_array(get_energy_rgb(game_board))
         im3.set_array(get_light_rgb(game_board))
-        # im4.set_array(...) # 不再更新肥力
+        im4.set_array(get_fertility_rgb(game_board))
         
         # 统计种群数量
         species_counts = {}
@@ -917,7 +1041,7 @@ if __name__ == "__main__":
                 r_val = dna.get('light_threshold', 0.0)
                 rep_thresh = dna.get('replication_threshold', 50.0)
                 g_val = max(0.0, min(1.0, (rep_thresh - 20.0) / 60.0))
-                b_val = 0.0
+                b_val = dna.get('fertility_threshold', 0.5)
                 color = (r_val, g_val, b_val)
                 
                 txt.set_text(f"{name}: {count}")
