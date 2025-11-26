@@ -1,0 +1,16 @@
+[
+    {
+        "dna": {
+            "light_threshold": 0.28768426789072754,
+            "fertility_threshold": 0.23923422482978116,
+            "replication_threshold": 11.667261529736612,
+            "mutation_prob": 0.00711690684137822,
+            "degeneration_prob": 0.007572318942550536,
+            "fertility_sacrifice_threshold": 0.042693031296889256,
+            "factory_prob": 0.10638921498033924,
+            "factory_fertility_threshold": 0.30215447963935066,
+            "species_id": 23
+        },
+        "name": "平地最强"
+    }
+]
