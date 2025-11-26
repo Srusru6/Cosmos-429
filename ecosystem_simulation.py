@@ -42,12 +42,19 @@ class OrganismUnit:
             'factory_prob': 0.05, # 变身为工厂的概率
             'factory_fertility_threshold': 0.3, # 肥力低于此值时，可能变身为工厂
             'defense_prob': 0.02, # 变身为防御设施的概率
+            'connection_threshold': 3.0, # 判定为枢纽节点的连接数阈值
+            'hub_behavior': 0.5, # 枢纽策略: <0.3连接, 0.3-0.7光合, >0.7工厂
+            'corridor_behavior': 0.4, # 通道策略: <0.6连接, >0.6光合
             'species_id': 0 # 种群ID
         }
 
     def update(self, board, x, y):
         # 基础代谢消耗
         self.energy -= 0.5
+        pass
+
+    def respond_to_alert(self, board, x, y, enemy_pos):
+        """响应警报: 默认无反应"""
         pass
 
 def get_neighbors(board, x, y):
@@ -61,8 +68,27 @@ def get_neighbors(board, x, y):
                 continue
             nx, ny = x + i, y + j
             if 0 <= nx < height and 0 <= ny < width:
-                neighbors.append((nx, ny))
+                # 只有非虚空区域才是有效邻居
+                if not board[nx][ny].is_void:
+                    neighbors.append((nx, ny))
     return neighbors
+
+def alert_allies(board, center_x, center_y, species_id, enemy_pos, radius=6):
+    """警报机制: 通知周围同种生物有敌人"""
+    height = len(board)
+    width = len(board[0])
+    
+    r_min = max(0, center_x - radius)
+    r_max = min(height, center_x + radius + 1)
+    c_min = max(0, center_y - radius)
+    c_max = min(width, center_y + radius + 1)
+    
+    for r in range(r_min, r_max):
+        for c in range(c_min, c_max):
+            unit = board[r][c].organism
+            if unit and unit.dna.get('species_id') == species_id:
+                unit.respond_to_alert(board, r, c, enemy_pos)
+            
 
 # 定义具体生物单元类
 class PhotosynthesisUnit(OrganismUnit):
@@ -115,6 +141,21 @@ class ReplicationUnit(OrganismUnit):
 
     def __repr__(self):
         return f"ReplicationUnit(E={self.energy:.1f}, Acc={self.accumulated_energy:.1f})"
+
+    def respond_to_alert(self, board, x, y, enemy_pos):
+        # 紧急防御: 如果能量充足，生成战斗单元
+        if self.energy > 20.0:
+            neighbors = get_neighbors(board, x, y)
+            empty = [n for n in neighbors if board[n[0]][n[1]].organism is None]
+            if empty:
+                # 选择离敌人最近的空位
+                best_spot = min(empty, key=lambda p: (p[0]-enemy_pos[0])**2 + (p[1]-enemy_pos[1])**2)
+                
+                self.energy -= 10.0
+                defender = CombatUnit(dna=self.dna)
+                defender.energy = 10.0
+                defender.alert_target = enemy_pos # 告知敌人位置
+                spawn_unit(board, best_spot[0], best_spot[1], defender)
 
     def update(self, board, x, y):
         # 战斗检测: 如果周围有异种生物，变身为战斗单元
@@ -195,15 +236,46 @@ class ReplicationUnit(OrganismUnit):
             count += 1
         avg_fertility = total_fert / count
         
-        # 判定变身类型
-        # 1. 如果区域平均肥力低且随机命中，则变为工厂
-        if avg_fertility < factory_fert_thresh and random.random() < factory_prob:
-            new_type = FactoryUnit
-        # 2. 只有当光照和肥力都达标时，才成为光合单元
-        elif current_light > light_thresh and current_fertility > fert_thresh:
-            new_type = PhotosynthesisUnit
+        # --- 基于连接数和DNA策略的变身逻辑 ---
+        valid_neighbors_count = len(neighbors)
+        conn_thresh = self.dna.get('connection_threshold', 3.0)
+        hub_behavior = self.dna.get('hub_behavior', 0.5)
+        corridor_behavior = self.dna.get('corridor_behavior', 0.4)
+        
+        new_type = None
+        
+        if valid_neighbors_count >= conn_thresh:
+            # 枢纽节点 (Hub)
+            if hub_behavior > 0.7:
+                # 倾向于工厂 (工业枢纽)
+                new_type = FactoryUnit
+            elif hub_behavior > 0.3:
+                # 倾向于光合 (资源枢纽)
+                new_type = PhotosynthesisUnit
+            else:
+                # 倾向于连接 (交通枢纽)
+                new_type = ConnectionUnit
         else:
-            new_type = ConnectionUnit
+            # 通道节点 (Corridor)
+            if corridor_behavior > 0.6:
+                # 倾向于光合 (拾荒者)
+                new_type = PhotosynthesisUnit
+            else:
+                # 倾向于连接 (快速通道)
+                new_type = ConnectionUnit
+        
+        # --- 环境限制修正 ---
+        # 即使策略倾向于某种类型，如果环境条件极端不匹配，则退化
+        
+        if new_type == FactoryUnit:
+            # 如果肥力其实很高，不需要工厂，转为光合
+            if avg_fertility > factory_fert_thresh:
+                new_type = PhotosynthesisUnit
+        
+        if new_type == PhotosynthesisUnit:
+            # 如果光照或肥力太差，无法维持光合，转为连接
+            if not (current_light > light_thresh and current_fertility > fert_thresh):
+                new_type = ConnectionUnit
             
         spawn_unit(board, x, y, new_type(dna=self.dna))
         return True
@@ -283,9 +355,15 @@ class CombatUnit(OrganismUnit):
     def __init__(self, dna=None):
         super().__init__(dna)
         self.patience = 5 # 战斗状态维持回合数 (滞留时间)
+        self.alert_target = None # 警报目标 (x, y)
 
     def __repr__(self):
         return f"CombatUnit(E={self.energy:.1f})"
+
+    def respond_to_alert(self, board, x, y, enemy_pos):
+        # 收到警报，设定目标并重置耐心
+        self.alert_target = enemy_pos
+        self.patience = 10
 
     def update(self, board, x, y):
         # 基础代谢 (战斗单元消耗更高，维持军队需要代价)
@@ -305,6 +383,11 @@ class CombatUnit(OrganismUnit):
                 target_species = target_unit.dna.get('species_id', 0)
                 if target_species != my_species:
                     has_enemy = True
+                    
+                    # 发出警报 (呼叫支援)
+                    alert_allies(board, x, y, my_species, (nx, ny))
+                    # 敌人也发出警报
+                    alert_allies(board, nx, ny, target_species, (x, y))
                     
                     # 战斗逻辑优化: 伤害交换机制
                     # 双方同时造成伤害，伤害量与自身能量相关
@@ -336,45 +419,63 @@ class CombatUnit(OrganismUnit):
         # 状态维护逻辑
         if has_enemy:
             self.patience = 5 # 发现敌人，重置倒计时
+            self.alert_target = None # 既然已经在战斗，清除远程目标
         else:
             self.patience -= 1
             
-            # 主动移动逻辑 (巡逻/猎杀)
+            # 主动移动逻辑 (巡逻/猎杀/响应警报)
             # 如果能量充足，尝试移动
             if self.energy > 5.0:
-                # 猎杀模式: 扫描半径2的范围寻找敌人
-                height = len(board)
-                width = len(board[0])
-                target_pos = None
-                
-                # 简单的范围2扫描
-                for dx in range(-2, 3):
-                    for dy in range(-2, 3):
-                        if abs(dx) <= 1 and abs(dy) <= 1: continue # 跳过邻居(已检查)
-                        nx, ny = x + dx, y + dy
-                        if 0 <= nx < height and 0 <= ny < width:
-                            u = board[nx][ny].organism
-                            if u and u.dna.get('species_id', 0) != my_species:
-                                target_pos = (nx, ny)
-                                break
-                    if target_pos: break
-                
-                # 移动决策
                 move_to = None
-                empty_neighbors = [n for n in neighbors if board[n[0]][n[1]].organism is None]
                 
-                if target_pos and empty_neighbors:
-                    # 向敌人方向移动
-                    # 简单的贪婪寻路: 选择距离目标最近的空邻居
-                    best_dist = 999
-                    for ex, ey in empty_neighbors:
-                        dist = ((ex - target_pos[0])**2 + (ey - target_pos[1])**2)
-                        if dist < best_dist:
-                            best_dist = dist
-                            move_to = (ex, ey)
-                elif empty_neighbors:
-                    # 随机巡逻
-                    move_to = random.choice(empty_neighbors)
+                # 1. 响应警报优先
+                if self.alert_target:
+                    # 检查目标是否已经到达或无效
+                    if (x, y) == self.alert_target:
+                        self.alert_target = None
+                    else:
+                        # 简单的贪婪寻路向警报点移动
+                        empty_neighbors = [n for n in neighbors if board[n[0]][n[1]].organism is None]
+                        if empty_neighbors:
+                            best_spot = min(empty_neighbors, key=lambda p: (p[0]-self.alert_target[0])**2 + (p[1]-self.alert_target[1])**2)
+                            move_to = best_spot
+                            
+                            # 如果距离很近了，可能已经到达附近，清除目标以防卡死
+                            if (x-self.alert_target[0])**2 + (y-self.alert_target[1])**2 < 2:
+                                self.alert_target = None
+
+                # 2. 猎杀模式 (如果没有警报目标)
+                if not move_to:
+                    # 猎杀模式: 扫描半径2的范围寻找敌人
+                    height = len(board)
+                    width = len(board[0])
+                    target_pos = None
+                    
+                    # 简单的范围2扫描
+                    for dx in range(-2, 3):
+                        for dy in range(-2, 3):
+                            if abs(dx) <= 1 and abs(dy) <= 1: continue # 跳过邻居(已检查)
+                            nx, ny = x + dx, y + dy
+                            if 0 <= nx < height and 0 <= ny < width:
+                                u = board[nx][ny].organism
+                                if u and u.dna.get('species_id', 0) != my_species:
+                                    target_pos = (nx, ny)
+                                    break
+                        if target_pos: break
+                    
+                    empty_neighbors = [n for n in neighbors if board[n[0]][n[1]].organism is None]
+                    
+                    if target_pos and empty_neighbors:
+                        # 向敌人方向移动
+                        best_dist = 999
+                        for ex, ey in empty_neighbors:
+                            dist = ((ex - target_pos[0])**2 + (ey - target_pos[1])**2)
+                            if dist < best_dist:
+                                best_dist = dist
+                                move_to = (ex, ey)
+                    elif empty_neighbors:
+                        # 随机巡逻
+                        move_to = random.choice(empty_neighbors)
                 
                 if move_to:
                     nx, ny = move_to
@@ -429,12 +530,17 @@ class Cell:
         self.fertility = self.base_fertility
         # 其上生物（默认为无）
         self.organism = None
+        # 是否为虚空 (不可通行区域)
+        self.is_void = False
 
     def __repr__(self):
         org_str = self.organism if self.organism else "None"
         return f"Cell(Light={self.light:.2f}, Fertility={self.fertility:.2f}, Organism={org_str})"
 
 def spawn_unit(board, x, y, unit, apply_fertility=True):
+    if board[x][y].is_void:
+        return # 无法在虚空中生成
+        
     board[x][y].organism = unit
     height = len(board)
     width = len(board[0])
@@ -552,6 +658,95 @@ def generate_board(width, height, mode='radial'):
     print(f"正在生成 {width}x{height} 的棋盘 (模式: {mode})...")
     board = [[Cell() for _ in range(width)] for _ in range(height)]
     
+    if mode == 'sparse':
+        # 1. 初始化全为虚空
+        for r in range(height):
+            for c in range(width):
+                board[r][c].is_void = True
+                board[r][c].light = 0.0
+                board[r][c].base_fertility = 0.0
+                board[r][c].fertility = 0.0
+        
+        # 2. 生成随机节点
+        num_nodes = int((width * height) ** 0.5) * 2
+        nodes = []
+        for _ in range(num_nodes):
+            nodes.append((random.randint(5, height-6), random.randint(5, width-6)))
+            
+        # 3. 连接节点 (MST + K近邻，确保单连通且有环)
+        edges = set()
+        
+        # 3.1 准备边列表用于MST
+        all_possible_edges = []
+        for i in range(len(nodes)):
+            for j in range(i + 1, len(nodes)):
+                r1, c1 = nodes[i]
+                r2, c2 = nodes[j]
+                d = (r1-r2)**2 + (c1-c2)**2
+                all_possible_edges.append((d, i, j))
+        
+        all_possible_edges.sort()
+        
+        # 3.2 Kruskal算法生成最小生成树 (保证全局连通)
+        parent = list(range(len(nodes)))
+        def find(i):
+            if parent[i] != i:
+                parent[i] = find(parent[i])
+            return parent[i]
+        
+        def union(i, j):
+            root_i = find(i)
+            root_j = find(j)
+            if root_i != root_j:
+                parent[root_i] = root_j
+                return True
+            return False
+            
+        for _, u, v in all_possible_edges:
+            if union(u, v):
+                edges.add(tuple(sorted((u, v))))
+                
+        # 3.3 叠加K近邻连接 (增加局部环路，避免单纯的树状结构)
+        for i in range(len(nodes)):
+            distances = []
+            for j in range(len(nodes)):
+                if i == j: continue
+                r1, c1 = nodes[i]
+                r2, c2 = nodes[j]
+                d = (r1-r2)**2 + (c1-c2)**2
+                distances.append((d, j))
+            
+            distances.sort()
+            # 连接最近的2个点
+            for k in range(min(2, len(distances))):
+                j = distances[k][1]
+                edges.add(tuple(sorted((i, j))))
+        
+        # 4. 栅格化路径
+        for i, j in edges:
+            r1, c1 = nodes[i]
+            r2, c2 = nodes[j]
+            
+            dist = int(max(abs(r2-r1), abs(c2-c1)))
+            if dist == 0: continue
+            
+            for step in range(dist + 1):
+                t = step / dist
+                r = int(r1 + (r2 - r1) * t)
+                c = int(c1 + (c2 - c1) * t)
+                
+                # 绘制路径 (宽度为3)
+                for dr in range(-1, 2):
+                    for dc in range(-1, 2):
+                        nr, nc = r + dr, c + dc
+                        if 0 <= nr < height and 0 <= nc < width:
+                            cell = board[nr][nc]
+                            cell.is_void = False
+                            # 路径上资源丰富
+                            cell.light = random.uniform(0.6, 1.0)
+                            cell.base_fertility = random.uniform(0.6, 1.0)
+                            cell.fertility = cell.base_fertility
+
     if mode == 'perlin':
         try:
             # 使用分形噪声生成更自然的网状结构
@@ -670,49 +865,61 @@ def populate_randomly(board, count=100, initial_dnas=None):
     height = len(board)
     width = len(board[0])
     
+    # 辅助函数: 寻找有效位置
+    def get_valid_spot():
+        for _ in range(50): # 尝试50次
+            r = random.randint(0, height - 1)
+            c = random.randint(0, width - 1)
+            if not board[r][c].is_void and board[r][c].organism is None:
+                return r, c
+        return None, None
+
     if initial_dnas:
         print(f"使用存档的 {len(initial_dnas)} 个DNA初始化...")
         for dna in initial_dnas:
-             r = random.randint(10, height - 11)
-             c = random.randint(10, width - 11)
-             spawn_unit(board, r, c, SporeUnit(dna=dna))
+             r, c = get_valid_spot()
+             if r is not None:
+                 spawn_unit(board, r, c, SporeUnit(dna=dna))
         
         # 如果不足10个，补齐随机
         remaining = 10 - len(initial_dnas)
         if remaining > 0:
              for _ in range(remaining):
-                r = random.randint(10, height - 11)
-                c = random.randint(10, width - 11)
+                r, c = get_valid_spot()
+                if r is not None:
+                    dna = {
+                        'light_threshold': random.uniform(0.2, 0.8),
+                        'fertility_threshold': random.uniform(0.2, 0.8),
+                        'replication_threshold': random.uniform(20.0, 80.0),
+                        'mutation_prob': random.uniform(0.0, 0.05),
+                        'degeneration_prob': random.uniform(0.0, 0.05),
+                        'fertility_sacrifice_threshold': random.uniform(0.0, 0.3),
+                        'factory_prob': random.uniform(0.0, 0.1),
+                        'factory_fertility_threshold': random.uniform(0.1, 0.5),
+                        'species_id': random.randint(1, 100)
+                    }
+                    spawn_unit(board, r, c, SporeUnit(dna=dna))
+    else:
+        # 放置一些孢子单元
+        for _ in range(10):
+            r, c = get_valid_spot()
+            if r is not None:
+                # 随机DNA阈值
                 dna = {
                     'light_threshold': random.uniform(0.2, 0.8),
                     'fertility_threshold': random.uniform(0.2, 0.8),
                     'replication_threshold': random.uniform(20.0, 80.0),
-                    'mutation_prob': random.uniform(0.0, 0.05),
-                    'degeneration_prob': random.uniform(0.0, 0.05),
+                    'mutation_prob': random.uniform(0.0, 0.05), # 0% ~ 5%
+                    'degeneration_prob': random.uniform(0.0, 0.05), # 0% ~ 5%
                     'fertility_sacrifice_threshold': random.uniform(0.0, 0.3),
                     'factory_prob': random.uniform(0.0, 0.1),
                     'factory_fertility_threshold': random.uniform(0.1, 0.5),
+                    'connection_threshold': random.uniform(2.0, 6.0),
+                    'hub_behavior': random.uniform(0.0, 1.0),
+                    'corridor_behavior': random.uniform(0.0, 1.0),
                     'species_id': random.randint(1, 100)
                 }
                 spawn_unit(board, r, c, SporeUnit(dna=dna))
-    else:
-        # 放置一些孢子单元
-        for _ in range(10):
-            r = random.randint(10, height - 11)
-            c = random.randint(10, width - 11)
-            # 随机DNA阈值
-            dna = {
-                'light_threshold': random.uniform(0.2, 0.8),
-                'fertility_threshold': random.uniform(0.2, 0.8),
-                'replication_threshold': random.uniform(20.0, 80.0),
-                'mutation_prob': random.uniform(0.0, 0.05), # 0% ~ 5%
-                'degeneration_prob': random.uniform(0.0, 0.05), # 0% ~ 5%
-                'fertility_sacrifice_threshold': random.uniform(0.0, 0.3),
-                'factory_prob': random.uniform(0.0, 0.1),
-                'factory_fertility_threshold': random.uniform(0.1, 0.5),
-                'species_id': random.randint(1, 100)
-            }
-            spawn_unit(board, r, c, SporeUnit(dna=dna))
 
     # 移除普通单元的生成，只保留孢子
     # unit_types = [PhotosynthesisUnit, ReplicationUnit, ConnectionUnit]
@@ -745,9 +952,14 @@ def perform_pollination(board):
     width = len(board[0])
     
     # 1. 随机选取源位置
-    r_src = random.randint(0, height - 1)
-    c_src = random.randint(0, width - 1)
-    source_unit = board[r_src][c_src].organism
+    # 尝试寻找有效生物
+    source_unit = None
+    for _ in range(20):
+        r_src = random.randint(0, height - 1)
+        c_src = random.randint(0, width - 1)
+        if board[r_src][c_src].organism:
+            source_unit = board[r_src][c_src].organism
+            break
     
     if source_unit:
         base_dna = source_unit.dna
@@ -762,14 +974,18 @@ def perform_pollination(board):
             'fertility_sacrifice_threshold': random.uniform(0.0, 0.3),
             'factory_prob': random.uniform(0.0, 0.1),
             'factory_fertility_threshold': random.uniform(0.1, 0.5),
+            'connection_threshold': random.uniform(2.0, 6.0),
+            'hub_behavior': random.uniform(0.0, 1.0),
+            'corridor_behavior': random.uniform(0.0, 1.0),
             'species_id': random.randint(1, 100)
         }
         
     # 2. 寻找目标空位 (尝试几次)
-    for _ in range(10):
+    for _ in range(20):
         r_dst = random.randint(0, height - 1)
         c_dst = random.randint(0, width - 1)
-        if board[r_dst][c_dst].organism is None:
+        # 必须是非虚空且为空
+        if not board[r_dst][c_dst].is_void and board[r_dst][c_dst].organism is None:
             # 3. 生成变异孢子
             new_dna = mutate_dna(base_dna)
             spawn_unit(board, r_dst, c_dst, SporeUnit(dna=new_dna))
@@ -834,8 +1050,11 @@ def get_board_rgb(board):
                 elif isinstance(cell.organism, CombatUnit):
                     grid[r, c] = [1, 0.5, 0] # 橙色: 战斗单元
             else:
-                # 背景显示黑色
-                grid[r, c] = [0, 0, 0]
+                # 背景显示
+                if hasattr(cell, 'is_void') and not cell.is_void:
+                    grid[r, c] = [0.15, 0.15, 0.15] # 有效路径显示为深灰色
+                else:
+                    grid[r, c] = [0, 0, 0] # 虚空显示为黑色
     return grid
 
 def get_dna_rgb(board):
@@ -864,8 +1083,11 @@ def get_dna_rgb(board):
                 
                 grid[r, c] = [r_val, g_val, b_val]
             else:
-                # 背景显示黑色
-                grid[r, c] = [0, 0, 0]
+                # 背景显示
+                if hasattr(cell, 'is_void') and not cell.is_void:
+                    grid[r, c] = [0.15, 0.15, 0.15] # 有效路径显示为深灰色
+                else:
+                    grid[r, c] = [0, 0, 0] # 虚空显示为黑色
     return grid
 
 def get_light_rgb(board):
@@ -954,9 +1176,12 @@ if __name__ == "__main__":
     
     # 1. 生成棋盘
     # 检查命令行参数是否指定了生成模式
-    gen_mode = 'radial'
-    if len(sys.argv) > 1 and 'perlin' in sys.argv:
-        gen_mode = 'perlin'
+    gen_mode = 'sparse' # 默认为稀疏图模式
+    if len(sys.argv) > 1:
+        if 'perlin' in sys.argv:
+            gen_mode = 'perlin'
+        elif 'radial' in sys.argv:
+            gen_mode = 'radial'
         
     game_board = generate_board(WIDTH, HEIGHT, mode=gen_mode)
     

@@ -1,142 +1,67 @@
 [
     {
         "dna": {
-            "light_threshold": 0.3383284175927618,
-            "fertility_threshold": 0.21943289687923945,
-            "replication_threshold": 21.14588786946997,
-            "mutation_prob": 0.006745403991568342,
-            "degeneration_prob": 0.00888453148598607,
-            "fertility_sacrifice_threshold": 0.03045612910233202,
-            "factory_prob": 0.10465107360403661,
-            "factory_fertility_threshold": 0.3705289264804971,
+            "light_threshold": 0.2760994010123499,
+            "fertility_threshold": 0.25140989891379456,
+            "replication_threshold": 11.061481312020849,
+            "mutation_prob": 0.00811225692071766,
+            "degeneration_prob": 0.00622408934417748,
+            "fertility_sacrifice_threshold": 0.035836738179696244,
+            "factory_prob": 0.13277806822467056,
+            "factory_fertility_threshold": 0.2660228774951793,
             "species_id": 23
         },
-        "name": "梅云-23"
+        "name": "平地最强"
     },
     {
         "dna": {
-            "light_threshold": 0.243367312392397,
-            "fertility_threshold": 0.27993248380437535,
-            "replication_threshold": 23.890452723276525,
-            "mutation_prob": 0.04322482540921763,
-            "degeneration_prob": 0.0019948259770959835,
-            "fertility_sacrifice_threshold": 0.11861649947121097,
-            "factory_prob": 0.07184998031930065,
-            "factory_fertility_threshold": 0.339834892339505,
-            "species_id": 55
+            "light_threshold": 0.2077270818485477,
+            "fertility_threshold": 0.32054632373151604,
+            "replication_threshold": 38.59831918930007,
+            "mutation_prob": 0.037198088375242945,
+            "degeneration_prob": 0.003212623738029477,
+            "fertility_sacrifice_threshold": 0.12327829964569112,
+            "factory_prob": 0.07294563051684784,
+            "factory_fertility_threshold": 0.1100460968191978,
+            "connection_threshold": 0.9714054634674528,
+            "hub_behavior": 0.32538492891115595,
+            "corridor_behavior": 0.29976892003319067,
+            "species_id": 3
         },
-        "name": "皇兰-55"
+        "name": "龙菊-3"
     },
     {
         "dna": {
-            "light_threshold": 0.19430000734782354,
-            "fertility_threshold": 0.34839919931405977,
-            "replication_threshold": 42.66879847221859,
-            "mutation_prob": 0.026293378756867616,
-            "degeneration_prob": 0.028655586811004215,
-            "fertility_sacrifice_threshold": 0.009845727124306567,
-            "factory_prob": 0.06614164449039485,
-            "factory_fertility_threshold": 0.33123308164154963,
-            "species_id": 9
+            "light_threshold": 0.7271121056552691,
+            "fertility_threshold": 0.3183180019350502,
+            "replication_threshold": 24.099905431760707,
+            "mutation_prob": 0.04160918630598646,
+            "degeneration_prob": 0.03145958997085282,
+            "fertility_sacrifice_threshold": 0.3030394613411047,
+            "factory_prob": 0.03006209424000566,
+            "factory_fertility_threshold": 0.4154784021565959,
+            "connection_threshold": 1.0,
+            "hub_behavior": 0.9808671175760989,
+            "corridor_behavior": 0.2638546587755384,
+            "species_id": 29
         },
-        "name": "雀鲨-9"
+        "name": "松山-29"
     },
     {
         "dna": {
-            "light_threshold": 0.3019309230029365,
-            "fertility_threshold": 0.26862627983854415,
-            "replication_threshold": 85.00815181049299,
-            "mutation_prob": 0.008886695286188538,
-            "degeneration_prob": 0.029409391398149867,
-            "fertility_sacrifice_threshold": 0.035107513204823665,
-            "factory_prob": 0.034603079911396606,
-            "factory_fertility_threshold": 0.3831523267906212,
-            "species_id": 54
+            "light_threshold": 0.3662163573520329,
+            "fertility_threshold": 0.3342756258825314,
+            "replication_threshold": 68.1538317633808,
+            "mutation_prob": 0.024294508868788152,
+            "degeneration_prob": 0.010450014547044351,
+            "fertility_sacrifice_threshold": 0.0666032382227263,
+            "factory_prob": 0.06735005732675131,
+            "factory_fertility_threshold": 0.5318567679871666,
+            "connection_threshold": 0.9919126034208826,
+            "hub_behavior": 0.7401683485890099,
+            "corridor_behavior": 0.19277791145420892,
+            "species_id": 53
         },
-        "name": "海云-54"
-    },
-    {
-        "dna": {
-            "light_threshold": 0.29195418841303805,
-            "fertility_threshold": 0.8070707331707425,
-            "replication_threshold": 21.27577481941001,
-            "mutation_prob": 0.01440538361872355,
-            "degeneration_prob": 0.0416441469010879,
-            "fertility_sacrifice_threshold": 0.156554608665655,
-            "factory_prob": 0.07129624163484674,
-            "factory_fertility_threshold": 0.16945268848573655,
-            "species_id": 48
-        },
-        "name": "魔菊-48"
-    },
-    {
-        "dna": {
-            "light_threshold": 0.28902344990716006,
-            "fertility_threshold": 0.3941255834026115,
-            "replication_threshold": 52.23653654134335,
-            "mutation_prob": 0.0336395188289947,
-            "degeneration_prob": 0.02901262593459044,
-            "fertility_sacrifice_threshold": 0.04182280140592427,
-            "factory_prob": 0.04637880564288844,
-            "factory_fertility_threshold": 0.41278428820868945,
-            "species_id": 11
-        },
-        "name": "云山-11"
-    },
-    {
-        "dna": {
-            "light_threshold": 0.5582785704120247,
-            "fertility_threshold": 0.5141833768636235,
-            "replication_threshold": 34.86423103794525,
-            "mutation_prob": 0.04030878345557111,
-            "degeneration_prob": 0.026405950592176774,
-            "fertility_sacrifice_threshold": 0.21090568925202882,
-            "factory_prob": 0.07930132917696534,
-            "factory_fertility_threshold": 0.31585732269361333,
-            "species_id": 75
-        },
-        "name": "川仙-75"
-    },
-    {
-        "dna": {
-            "light_threshold": 0.256738639391051,
-            "fertility_threshold": 0.3063330628740591,
-            "replication_threshold": 45.041442065461425,
-            "mutation_prob": 0.03741803240417697,
-            "degeneration_prob": 0.02044680824625105,
-            "fertility_sacrifice_threshold": 0.20763245100681477,
-            "factory_prob": 0.0823575633331305,
-            "factory_fertility_threshold": 0.10727547405884048,
-            "species_id": 44
-        },
-        "name": "电天-44"
-    },
-    {
-        "dna": {
-            "light_threshold": 0.2710379906459106,
-            "fertility_threshold": 0.4071714379015799,
-            "replication_threshold": 35.45639791133769,
-            "mutation_prob": 0.027467386330703066,
-            "degeneration_prob": 0.012579192597370979,
-            "fertility_sacrifice_threshold": 0.2874676726651514,
-            "factory_prob": 0.0048892074077731195,
-            "factory_fertility_threshold": 0.1997347114916693,
-            "species_id": 77
-        },
-        "name": "日雀-77"
-    },
-    {
-        "dna": {
-            "light_threshold": 0.41376789872753794,
-            "fertility_threshold": 0.33375923789287976,
-            "replication_threshold": 72.03337450436307,
-            "mutation_prob": 0.02925185250371808,
-            "degeneration_prob": 0.010989117429473382,
-            "fertility_sacrifice_threshold": 0.16162387298642283,
-            "factory_prob": 0.007677163323532073,
-            "factory_fertility_threshold": 0.32794340376982145,
-            "species_id": 8
-        },
-        "name": "山云-8"
+        "name": "圣兰-53"
     }
 ]
