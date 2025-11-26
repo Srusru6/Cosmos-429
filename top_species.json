@@ -1,67 +1,44 @@
 [
     {
         "dna": {
-            "light_threshold": 0.2760994010123499,
-            "fertility_threshold": 0.25140989891379456,
-            "replication_threshold": 11.061481312020849,
-            "mutation_prob": 0.00811225692071766,
-            "degeneration_prob": 0.00622408934417748,
-            "fertility_sacrifice_threshold": 0.035836738179696244,
-            "factory_prob": 0.13277806822467056,
-            "factory_fertility_threshold": 0.2660228774951793,
-            "species_id": 23
+            "light_threshold": 0.32595679376325637,
+            "fertility_threshold": 0.4236121052783716,
+            "replication_threshold": 52.90892714311096,
+            "mutation_prob": 0.046548928461007166,
+            "degeneration_prob": 0.001800296884188174,
+            "fertility_sacrifice_threshold": 0.05609041638934742,
+            "factory_prob": 0.0826303881898286,
+            "factory_fertility_threshold": 0.22435685370855551,
+            "species_id": 11
         },
-        "name": "平地最强"
+        "name": "川梅-11"
     },
     {
         "dna": {
-            "light_threshold": 0.2077270818485477,
-            "fertility_threshold": 0.32054632373151604,
-            "replication_threshold": 38.59831918930007,
-            "mutation_prob": 0.037198088375242945,
-            "degeneration_prob": 0.003212623738029477,
-            "fertility_sacrifice_threshold": 0.12327829964569112,
-            "factory_prob": 0.07294563051684784,
-            "factory_fertility_threshold": 0.1100460968191978,
-            "connection_threshold": 0.9714054634674528,
-            "hub_behavior": 0.32538492891115595,
-            "corridor_behavior": 0.29976892003319067,
-            "species_id": 3
+            "light_threshold": 0.43891393448228233,
+            "fertility_threshold": 0.5916483900136225,
+            "replication_threshold": 25.815924506833845,
+            "mutation_prob": 0.04112714361711897,
+            "degeneration_prob": 0.030310108224419874,
+            "fertility_sacrifice_threshold": 0.10107516508763555,
+            "factory_prob": 0.04940473926301952,
+            "factory_fertility_threshold": 0.17645508521543204,
+            "species_id": 7
         },
-        "name": "龙菊-3"
+        "name": "松月-7"
     },
     {
         "dna": {
-            "light_threshold": 0.7271121056552691,
-            "fertility_threshold": 0.3183180019350502,
-            "replication_threshold": 24.099905431760707,
-            "mutation_prob": 0.04160918630598646,
-            "degeneration_prob": 0.03145958997085282,
-            "fertility_sacrifice_threshold": 0.3030394613411047,
-            "factory_prob": 0.03006209424000566,
-            "factory_fertility_threshold": 0.4154784021565959,
-            "connection_threshold": 1.0,
-            "hub_behavior": 0.9808671175760989,
-            "corridor_behavior": 0.2638546587755384,
-            "species_id": 29
+            "light_threshold": 0.7303873813810655,
+            "fertility_threshold": 0.7101462402269647,
+            "replication_threshold": 51.21057430424545,
+            "mutation_prob": 0.008418357025088358,
+            "degeneration_prob": 0.001639878611363771,
+            "fertility_sacrifice_threshold": 0.15653251247137662,
+            "factory_prob": 0.014942104430463732,
+            "factory_fertility_threshold": 0.26105722324528147,
+            "species_id": 48
         },
-        "name": "松山-29"
-    },
-    {
-        "dna": {
-            "light_threshold": 0.3662163573520329,
-            "fertility_threshold": 0.3342756258825314,
-            "replication_threshold": 68.1538317633808,
-            "mutation_prob": 0.024294508868788152,
-            "degeneration_prob": 0.010450014547044351,
-            "fertility_sacrifice_threshold": 0.0666032382227263,
-            "factory_prob": 0.06735005732675131,
-            "factory_fertility_threshold": 0.5318567679871666,
-            "connection_threshold": 0.9919126034208826,
-            "hub_behavior": 0.7401683485890099,
-            "corridor_behavior": 0.19277791145420892,
-            "species_id": 53
-        },
-        "name": "圣兰-53"
+        "name": "雀神-48"
     }
 ]
